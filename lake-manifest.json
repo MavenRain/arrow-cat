@@ -1,0 +1,13 @@
+{"version": "1.2.0",
+ "packagesDir": ".lake/packages",
+ "packages":
+ [{"type": "path",
+   "scope": "",
+   "name": "«kan-tactics»",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "../kan-tactics",
+   "configFile": "lakefile.lean"}],
+ "name": "«arrow-cat»",
+ "lakeDir": ".lake",
+ "fixedToolchain": false}
