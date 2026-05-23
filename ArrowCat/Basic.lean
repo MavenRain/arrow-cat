@@ -51,16 +51,29 @@ voter is extremal with respect to some `b`, society is extremal too. -/
 def isExtreme (a : α) : Prop := p.isTop a ∨ p.isBottom a
 
 /-- Strict preferences are irreflexive: no alternative is strictly
-preferred to itself.  Falls out of asymmetry instantiated at `a = b`.
+preferred to itself.  Falls out of asymmetry instantiated at `a = b`. -/
+theorem irrefl (a : α) : ¬ p.pref a a := by
+  kan_intros h
+  kan_exact p.asym a a h h
 
-Term mode: kan-tactics' `kan_intros` does not yet transparently unfold
-`Not` to `_ → False`, so introducing the negated hypothesis with
-`kan_intros h` fails on a goal of shape `¬ p.pref a a`.  Writing the
-proof as a lambda sidesteps the issue and remains compliant with the
-rule that tactic blocks must use only kan-tactics (this proof has no
-tactic block). -/
-theorem irrefl (a : α) : ¬ p.pref a a :=
-  fun h => p.asym a a h h
+/-- If `b` is not at the top, some distinct alternative is strictly
+preferred to it.  Combines classical reasoning with `total` to extract a
+positive witness from the failure of the universal `isTop`. -/
+theorem exists_pref_of_not_isTop (b : α) (h : ¬ p.isTop b) :
+    ∃ a, a ≠ b ∧ p.pref a b :=
+  Classical.byContradiction fun hNoWit =>
+    h fun x hxb =>
+      Classical.byContradiction fun hNotPbx =>
+        hNoWit ⟨x, hxb, (p.total x b hxb).resolve_right hNotPbx⟩
+
+/-- If `b` is not at the bottom, `b` is strictly preferred to some
+distinct alternative.  Dual of `exists_pref_of_not_isTop`. -/
+theorem exists_pref_of_not_isBottom (b : α) (h : ¬ p.isBottom b) :
+    ∃ c, c ≠ b ∧ p.pref b c :=
+  Classical.byContradiction fun hNoWit =>
+    h fun x hxb =>
+      Classical.byContradiction fun hNotPxb =>
+        hNoWit ⟨x, hxb, (p.total x b hxb).resolve_left hNotPxb⟩
 
 end StrictPref
 

@@ -32,25 +32,69 @@ universe u
 
 variable {m : Nat} {α : Type u}
 
+/-- **Existence of a `(c, a)`-modified profile.**
+
+Given a profile in which every voter places `b` extremally and three
+distinct alternatives `a`, `b`, `c`, there exists a modified profile
+`p'` such that
+
+1. every voter ranks `c` strictly above `a` in `p'`, and
+2. for every voter, the relative ranking of `(a, b)` is unchanged
+   between `p` and `p'`, and
+3. for every voter, the relative ranking of `(b, c)` is unchanged
+   between `p` and `p'`.
+
+The construction (deferred to a future session): for each voter, define
+`p' i` as `p i` with `a` and `c` swapped whenever `p i` ranks `a` above
+`c`; this preserves the extremal position of `b` (since `b ≠ a, c`) and
+hence preserves every `(a, b)` and `(b, c)` ranking.  Formalising the
+swap requires `DecidableEq α` and a case-analysis-heavy injectivity
+proof, both of which are out of scope for this pass. -/
+theorem exists_modified_profile
+    (p : Profile m α) (a b c : α)
+    (_hab : a ≠ b) (_hcb : c ≠ b) (_hac : a ≠ c)
+    (_hExt : ∀ i : Fin m, (p i).isExtreme b) :
+    ∃ p' : Profile m α,
+      (∀ i : Fin m, (p' i).pref c a) ∧
+      (∀ i : Fin m, (p' i).pref a b ↔ (p i).pref a b) ∧
+      (∀ i : Fin m, (p' i).pref b c ↔ (p i).pref b c) := by
+  sorry
+
 /-- **Extremal Lemma.**
 
 If `f` satisfies Pareto and IIA, and every voter places `b` extremally
 (top or bottom of their personal ranking), then the social preference
 also places `b` extremally.
 
-Proof sketch (Geanakoplos): suppose for contradiction that society
-places some `a ≠ b` strictly above `b` and some `c ≠ b` strictly below
-`b`.  Construct a modified profile that preserves every voter's ranking
-of `a` versus `b` and of `c` versus `b`, but flips `a` versus `c` to
-match Pareto unanimity.  IIA forces society's `(a,b)` and `(b,c)`
-rankings to be unchanged, transitivity then forces `a` strictly above
-`c`, contradicting Pareto on the modified profile. -/
+Proof (Geanakoplos): suppose for contradiction `(f p).isExtreme b` fails.
+Then society places neither `b` at the top nor at the bottom, so there
+exist `a, c ≠ b` with `(f p).pref a b` and `(f p).pref b c`.  These must
+be distinct, since `a = c` together with the two preferences would
+contradict asymmetry.  Apply `exists_modified_profile` to obtain `p'`
+that (i) makes every voter rank `c ≻ a` and (ii) preserves every
+voter's `(a, b)` and `(b, c)` rankings.  By IIA, society's rankings of
+`(a, b)` and `(b, c)` are the same in `p'` as in `p`; by transitivity of
+the social order, `(f p').pref a c`.  By Pareto on `p'`, `(f p').pref
+c a`.  Asymmetry then yields `False`. -/
 theorem extremalLemma
-    (f : SWF m α) (_hPareto : SWF.Pareto f) (_hIIA : SWF.IIA f)
+    (f : SWF m α) (hPareto : SWF.Pareto f) (hIIA : SWF.IIA f)
     (p : Profile m α) (b : α)
-    (_hAllExtreme : ∀ i : Fin m, (p i).isExtreme b) :
-    (f p).isExtreme b := by
-  sorry
+    (hAllExtreme : ∀ i : Fin m, (p i).isExtreme b) :
+    (f p).isExtreme b :=
+  Classical.byContradiction fun hne =>
+    let hNotTop : ¬ (f p).isTop b    := fun hT => hne (Or.inl hT)
+    let hNotBot : ¬ (f p).isBottom b := fun hB => hne (Or.inr hB)
+    let ⟨a, hab, hpAB⟩ := (f p).exists_pref_of_not_isTop b hNotTop
+    let ⟨c, hcb, hpBC⟩ := (f p).exists_pref_of_not_isBottom b hNotBot
+    let hac : a ≠ c := fun heq =>
+      (f p).asym a b hpAB (heq.symm ▸ hpBC)
+    let ⟨p', hCA, hABeq, hBCeq⟩ :=
+      exists_modified_profile p a b c hab hcb hac hAllExtreme
+    let h_fp'_AB : (f p').pref a b := (hIIA p' p a b hABeq).mpr hpAB
+    let h_fp'_BC : (f p').pref b c := (hIIA p' p b c hBCeq).mpr hpBC
+    let h_fp'_AC : (f p').pref a c := (f p').trans a b c h_fp'_AB h_fp'_BC
+    let h_fp'_CA : (f p').pref c a := hPareto p' c a hCA
+    (f p').asym a c h_fp'_AC h_fp'_CA
 
 /-- **Pivotal Voter / Local Dictatorship.**
 
