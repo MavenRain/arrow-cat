@@ -1,5 +1,6 @@
 import ArrowCat.Basic
 import ArrowCat.Geanakoplos
+import ArrowCat.Pivotal
 import KanTactics
 
 /-! # Arrow's Impossibility Theorem

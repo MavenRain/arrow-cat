@@ -181,4 +181,83 @@ theorem pivotalVoter_isBottom [DecidableEq α] (h1 : 0 < m)
 
 end Pivot
 
+/-- From three pairwise-distinct alternatives, at least one of them
+differs from any given `b`. -/
+theorem AtLeastThree.exists_ne (h3 : AtLeastThree α) (b : α) : ∃ x : α, x ≠ b :=
+  let ⟨x, y, _, hxy, _, _⟩ := h3
+  Classical.byCases
+    (fun (hxb : x = b) => ⟨y, fun heq => hxy (hxb.trans heq.symm)⟩)
+    (fun hxb => ⟨x, hxb⟩)
+
+/-! ### Local dictatorship of the pivotal voter
+
+The Geanakoplos argument: starting from the pivotal voter `k` of a
+fixed base profile `q`, any input profile `p` with `(p k).pref a c`
+(for `a, c ≠ b`) satisfies `(f p).pref a c`.
+
+The proof of the dictator-over-`(a, c)`-when-neither-is-`b` direction
+(the conclusion of `pivotalVoterIsLocalDictator`) goes by constructing
+an intermediate profile `p'` from `p` that
+
+- preserves every voter's `(a, c)` ranking (so IIA on `(a, c)` keeps the
+  social ranking of `(a, c)` unchanged between `p` and `p'`);
+- aligns every voter's `b`-position with the staircase profile that
+  exhibits the pivotal flip (so the pivotal-voter spec + extremal lemma
+  give `(f p').pref a b` and `(f p').pref b c`);
+- transitivity of `(f p')` then yields `(f p').pref a c`, which by IIA
+  transfers back to `(f p).pref a c`.
+
+That intermediate-profile construction is itself nontrivial and is
+left as the inner `sorry` of the proof below; everything around it
+(case-splitting on `Nonempty (Profile m α)`, extracting the witness `x
+≠ b`, defining `k` via `pivotalVoter`) is in place. -/
+
+/-- **Pivotal voter is a local dictator.**
+
+There exists a voter `k` such that for any two alternatives `a, c`
+neither of which is `b`, society's preference always agrees with voter
+`k`'s.
+
+When `Profile m α` is empty, the universal `∀ p` is vacuous and any
+`k : Fin m` works; when it is nonempty, we pick a base profile `q` via
+`Classical.choice` and take `k := pivotalVoter h1 f hPareto hIIA q hxb`.
+The proper Geanakoplos dictator-over-`(a, c)` argument is the inner
+`sorry`. -/
+theorem pivotalVoterIsLocalDictator [DecidableEq α]
+    (f : SWF m α) (hPareto : SWF.Pareto f) (hIIA : SWF.IIA f)
+    (h1 : 0 < m) (h3 : AtLeastThree α) (b : α) :
+    ∃ k : Fin m, ∀ a c : α, a ≠ b → c ≠ b →
+      ∀ p : Profile m α, (p k).pref a c → (f p).pref a c :=
+  let ⟨x, hxb⟩ := AtLeastThree.exists_ne h3 b
+  Classical.byCases
+    (fun hNE : Nonempty (Profile m α) =>
+      let q := Classical.choice hNE
+      let k := pivotalVoter h1 f hPareto hIIA q hxb
+      ⟨k, fun _a _c _hab _hcb _p _hpac =>
+        -- Inner Geanakoplos construction: build p' from p that preserves
+        -- every voter's (a, c) ranking and aligns b-positions with
+        -- staircase q b (k.val + 1) for the pivotal flip.  Then apply
+        -- IIA + extremalLemma + transitivity.  Deferred.
+        sorry⟩)
+    (fun hNE : ¬ Nonempty (Profile m α) =>
+      -- Profile m α is empty; the inner ∀ p is vacuous.
+      ⟨⟨0, h1⟩, fun _ _ _ _ p _ => absurd (Nonempty.intro p) hNE⟩)
+
+/-- **Pivot-voter consistency across choices of `b`.**
+
+The pivotal voter for `b` is also the pivotal voter for any other
+alternative `b'`.  Promoted from local to global dictatorship by
+applying `pivotalVoterIsLocalDictator` for two different `b` choices
+and observing that every pair `(a, c)` avoids at least one of them.
+
+Stub: defers to the local-dictatorship lemma above plus a triangle
+argument that recovers `(b, ·)` dictatorship from `(·, b')` results. -/
+theorem pivotalVoterUnique [DecidableEq α]
+    (f : SWF m α) (hPareto : SWF.Pareto f) (hIIA : SWF.IIA f)
+    (h1 : 0 < m) (h3 : AtLeastThree α) (b b' : α) (_hbb' : b ≠ b') :
+    ∃ k : Fin m,
+      (∀ a c : α, a ≠ b  → c ≠ b  → ∀ p : Profile m α, (p k).pref a c → (f p).pref a c) ∧
+      (∀ a c : α, a ≠ b' → c ≠ b' → ∀ p : Profile m α, (p k).pref a c → (f p).pref a c) := by
+  sorry
+
 end ArrowCat
