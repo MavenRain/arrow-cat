@@ -1,4 +1,5 @@
 import ArrowCat.Basic
+import ArrowCat.Swap
 import KanTactics
 
 /-! # Geanakoplos's three lemmas
@@ -39,26 +40,27 @@ distinct alternatives `a`, `b`, `c`, there exists a modified profile
 `p'` such that
 
 1. every voter ranks `c` strictly above `a` in `p'`, and
-2. for every voter, the relative ranking of `(a, b)` is unchanged
-   between `p` and `p'`, and
-3. for every voter, the relative ranking of `(b, c)` is unchanged
-   between `p` and `p'`.
+2. for every voter, the relative ranking of `(a, b)` is unchanged, and
+3. for every voter, the relative ranking of `(b, c)` is unchanged.
 
-The construction (deferred to a future session): for each voter, define
-`p' i` as `p i` with `a` and `c` swapped whenever `p i` ranks `a` above
-`c`; this preserves the extremal position of `b` (since `b ≠ a, c`) and
-hence preserves every `(a, b)` and `(b, c)` ranking.  Formalising the
-swap requires `DecidableEq α` and a case-analysis-heavy injectivity
-proof, both of which are out of scope for this pass. -/
-theorem exists_modified_profile
+Construction: for each voter, apply `StrictPref.modifyForCA`, which
+either keeps the voter's preference (if they already rank `c` above
+`a`) or swaps `a` and `c` in their ranking.  Because `b` is extremal in
+`p i` and distinct from both `a` and `c`, the swap preserves `b`'s
+extremal position; combined with `pref_left/right_iff_of_isExtreme`,
+that yields preservation of every `(a, b)` and `(b, c)` ranking. -/
+theorem exists_modified_profile [DecidableEq α]
     (p : Profile m α) (a b c : α)
-    (_hab : a ≠ b) (_hcb : c ≠ b) (_hac : a ≠ c)
-    (_hExt : ∀ i : Fin m, (p i).isExtreme b) :
+    (hab : a ≠ b) (hcb : c ≠ b) (hac : a ≠ c)
+    (hExt : ∀ i : Fin m, (p i).isExtreme b) :
     ∃ p' : Profile m α,
       (∀ i : Fin m, (p' i).pref c a) ∧
       (∀ i : Fin m, (p' i).pref a b ↔ (p i).pref a b) ∧
-      (∀ i : Fin m, (p' i).pref b c ↔ (p i).pref b c) := by
-  sorry
+      (∀ i : Fin m, (p' i).pref b c ↔ (p i).pref b c) :=
+  ⟨fun i => (p i).modifyForCA a c,
+   fun i => (p i).modifyForCA_pref_ca a c hac,
+   fun i => (p i).modifyForCA_pref_ab_iff hab hcb (hExt i),
+   fun i => (p i).modifyForCA_pref_bc_iff hab hcb hac (hExt i)⟩
 
 /-- **Extremal Lemma.**
 
@@ -76,7 +78,7 @@ voter's `(a, b)` and `(b, c)` rankings.  By IIA, society's rankings of
 `(a, b)` and `(b, c)` are the same in `p'` as in `p`; by transitivity of
 the social order, `(f p').pref a c`.  By Pareto on `p'`, `(f p').pref
 c a`.  Asymmetry then yields `False`. -/
-theorem extremalLemma
+theorem extremalLemma [DecidableEq α]
     (f : SWF m α) (hPareto : SWF.Pareto f) (hIIA : SWF.IIA f)
     (p : Profile m α) (b : α)
     (hAllExtreme : ∀ i : Fin m, (p i).isExtreme b) :

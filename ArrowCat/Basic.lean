@@ -75,6 +75,56 @@ theorem exists_pref_of_not_isBottom (b : α) (h : ¬ p.isBottom b) :
       Classical.byContradiction fun hNotPxb =>
         hNoWit ⟨x, hxb, (p.total x b hxb).resolve_left hNotPxb⟩
 
+/-- If `b` is at the top, no distinct alternative is strictly preferred
+to `b`.  (Top ⇒ negative-preference of `b` from any other element.) -/
+theorem not_pref_of_isTop {b : α} (h : p.isTop b) {x : α} (hxb : x ≠ b) :
+    ¬ p.pref x b :=
+  fun hxb' => p.asym x b hxb' (h x hxb)
+
+/-- If `b` is at the top, `b` is strictly preferred to every distinct
+alternative.  (Top ⇒ positive-preference of every other element by `b`.) -/
+theorem pref_of_isTop {b : α} (h : p.isTop b) {x : α} (hxb : x ≠ b) :
+    p.pref b x :=
+  h x hxb
+
+/-- If `b` is at the bottom, every distinct alternative is strictly
+preferred to `b`. -/
+theorem pref_of_isBottom {b : α} (h : p.isBottom b) {x : α} (hxb : x ≠ b) :
+    p.pref x b :=
+  h x hxb
+
+/-- If `b` is at the bottom, `b` is not strictly preferred to any
+distinct alternative. -/
+theorem not_pref_of_isBottom {b : α} (h : p.isBottom b) {x : α} (hxb : x ≠ b) :
+    ¬ p.pref b x :=
+  fun hb_x => p.asym b x hb_x (h x hxb)
+
+/-- Generic "preference-of-extremal-target" iff: for an extremal `b` and
+two other elements `x, y` distinct from `b`, `p.pref x b ↔ p.pref y b`
+(both `False` when `b` is top, both `True` when `b` is bottom). -/
+theorem pref_left_iff_of_isExtreme {b : α} (hExt : p.isExtreme b)
+    {x y : α} (hxb : x ≠ b) (hyb : y ≠ b) :
+    p.pref x b ↔ p.pref y b :=
+  hExt.elim
+    (fun hTop =>
+      ⟨fun hpx => absurd hpx (p.not_pref_of_isTop hTop hxb),
+       fun hpy => absurd hpy (p.not_pref_of_isTop hTop hyb)⟩)
+    (fun hBot =>
+      ⟨fun _ => p.pref_of_isBottom hBot hyb,
+       fun _ => p.pref_of_isBottom hBot hxb⟩)
+
+/-- Dual of `pref_left_iff_of_isExtreme` on the right argument. -/
+theorem pref_right_iff_of_isExtreme {b : α} (hExt : p.isExtreme b)
+    {x y : α} (hxb : x ≠ b) (hyb : y ≠ b) :
+    p.pref b x ↔ p.pref b y :=
+  hExt.elim
+    (fun hTop =>
+      ⟨fun _ => p.pref_of_isTop hTop hyb,
+       fun _ => p.pref_of_isTop hTop hxb⟩)
+    (fun hBot =>
+      ⟨fun hpx => absurd hpx (p.not_pref_of_isBottom hBot hxb),
+       fun hpy => absurd hpy (p.not_pref_of_isBottom hBot hyb)⟩)
+
 end StrictPref
 
 /-- A *profile* assigns a strict preference to each of `m` voters.
