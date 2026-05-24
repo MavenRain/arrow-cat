@@ -20,9 +20,10 @@ lemmas:
    different `b`, the local dictator becomes a global dictator -- the
    payoff is delivered in `ArrowCat.Arrow`.
 
-The lemmas are stated here with `sorry` proofs; filling them in is the
-next milestone.  Every proof, when written, must use only kan-tactics in
-tactic blocks (term-mode proofs are unrestricted). -/
+All three lemmas are proved.  Lemmas 2 and 3 live in `ArrowCat.Pivotal`
+(alongside the staircase profile that supports them); the extremal
+lemma stays here.  Every tactic block uses only kan-tactics; term-mode
+proofs are used wherever they are cleaner. -/
 
 
 set_option autoImplicit false

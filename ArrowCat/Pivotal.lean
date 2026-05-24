@@ -187,6 +187,33 @@ theorem AtLeastThree.exists_ne (h3 : AtLeastThree α) (b : α) : ∃ x : α, x �
     (fun (hxb : x = b) => ⟨y, fun heq => hxy (hxb.trans heq.symm)⟩)
     (fun hxb => ⟨x, hxb⟩)
 
+/-- From three pairwise-distinct alternatives, at least one of them
+differs from each of two given alternatives `b, b'`.  (Pigeonhole: at
+most one of the three equals `b`, at most one equals `b'`, so at least
+`3 - 1 - 1 = 1` avoids both.) -/
+theorem AtLeastThree.exists_ne_two (h3 : AtLeastThree α) (b b' : α) (_hbb' : b ≠ b') :
+    ∃ a : α, a ≠ b ∧ a ≠ b' :=
+  let ⟨a1, a2, a3, h12, h23, h13⟩ := h3
+  Classical.byCases
+    (fun h1b : a1 = b =>
+      Classical.byCases
+        (fun h2b' : a2 = b' =>
+          ⟨a3, fun heq => h13 (h1b.trans heq.symm),
+               fun heq => h23 (h2b'.trans heq.symm)⟩)
+        (fun h2b' : a2 ≠ b' =>
+          ⟨a2, fun heq => h12 (h1b.trans heq.symm), h2b'⟩))
+    (fun h1b : a1 ≠ b =>
+      Classical.byCases
+        (fun h1b' : a1 = b' =>
+          Classical.byCases
+            (fun h2b : a2 = b =>
+              ⟨a3, fun heq => h23 (h2b.trans heq.symm),
+                   fun heq => h13 (h1b'.trans heq.symm)⟩)
+            (fun h2b : a2 ≠ b =>
+              ⟨a2, h2b, fun heq => h12 (h1b'.trans heq.symm)⟩))
+        (fun h1b' : a1 ≠ b' =>
+          ⟨a1, h1b, h1b'⟩))
+
 /-! ### Local dictatorship of the pivotal voter
 
 The Geanakoplos construction: build an auxiliary profile `p'` that
@@ -271,8 +298,6 @@ theorem localDictAuxProfile_pref_ab_iff_staircase
         (Eq.mp (congrArg (fun r : StrictPref α => r.pref a b)
           (staircase_lt h1)) h_stair))
   else if h2 : i.val = k.val then
-    -- LHS = (((p i).moveBToTop b).moveBToTop a).pref a b = Or.inl ⟨rfl, hab⟩
-    -- RHS = ((q i).moveBToBottom b).pref a b = Or.inl ⟨rfl, hab⟩ (moveBToBottom_pref_other_b)
     iff_of_true'
       (Eq.mpr (congrArg (fun r : StrictPref α => r.pref a b)
         (localDictAuxProfile_eq h1 h2))
@@ -309,9 +334,6 @@ theorem localDictAuxProfile_pref_bc_iff_staircase_succ
   else if h2 : i.val = k.val then
     have h_lt : i.val < k.val + 1 :=
       Eq.mpr (congrArg (· < k.val + 1) h2) (Nat.lt_succ_self k.val)
-    -- LHS = (((p i).moveBToTop b).moveBToTop a).pref b c
-    --     = Or.inr ⟨b ≠ a, c ≠ a, ((p i).moveBToTop b).pref b c⟩
-    --     = Or.inr ⟨hab.symm-Ne, hac-Ne.symm, moveBToTop_pref_b_other hcb⟩
     have hLHS : (((p i).moveBToTop b).moveBToTop a).pref b c :=
       Or.inr ⟨fun heq => hab heq.symm,
               fun heq => hac heq.symm,
@@ -335,26 +357,47 @@ theorem localDictAuxProfile_pref_bc_iff_staircase_succ
 
 end LocalDictator
 
-/-- **Pivotal voter is a local dictator.**
+/-- The core local-dictator argument for a fixed base profile `q`.
 
-There exists a voter `k` such that for any two alternatives `a, c`
-neither of which is `b`, society's preference always agrees with voter
-`k`'s.
+Given the pivotal voter `k := pivotalVoter h1 f hPareto hIIA q hxb`,
+for any pair `(a, c)` with `a, c ≠ b` and any profile `p` with `(p k).pref
+a c`, society's preference `(f p).pref a c` holds.  This is the inner
+content of `pivotalVoterIsLocalDictator`; extracting it as a separate
+lemma lets `pivotalVoterUnique` reuse it without going through the
+existential. -/
+theorem pivotalVoter_dictates_nonB [DecidableEq α] (h1 : 0 < m)
+    (f : SWF m α) (hPareto : SWF.Pareto f) (hIIA : SWF.IIA f)
+    (q : Profile m α) {b x : α} (hxb : x ≠ b)
+    (a c : α) (hab : a ≠ b) (hcb : c ≠ b)
+    (p : Profile m α) (hpac : (p (pivotalVoter h1 f hPareto hIIA q hxb)).pref a c) :
+    (f p).pref a c :=
+  Classical.byCases
+    (fun heq : a = c =>
+      absurd
+        (Eq.mpr (congrArg (fun y => (p (pivotalVoter h1 f hPareto hIIA q hxb)).pref a y) heq) hpac)
+        ((p (pivotalVoter h1 f hPareto hIIA q hxb)).irrefl a))
+    (fun hac : a ≠ c =>
+      let k := pivotalVoter h1 f hPareto hIIA q hxb
+      let p' := localDictAuxProfile p k a b
+      let iff_ac : ∀ i, (p' i).pref a c ↔ (p i).pref a c :=
+        fun i => localDictAuxProfile_pref_ac hab hcb hac hpac i
+      let iff_ab : ∀ i, (p' i).pref a b ↔ (staircase q b k.val i).pref a b :=
+        fun i => localDictAuxProfile_pref_ab_iff_staircase hab i
+      let iff_bc : ∀ i, (p' i).pref b c ↔ (staircase q b (k.val + 1) i).pref b c :=
+        fun i => localDictAuxProfile_pref_bc_iff_staircase_succ hab hcb hac i
+      have fp'_ab : (f p').pref a b :=
+        (hIIA p' (staircase q b k.val) a b iff_ab).mpr
+          (pivotalVoter_isBottom h1 f hPareto hIIA q hxb a hab)
+      have fp'_bc : (f p').pref b c :=
+        (hIIA p' (staircase q b (k.val + 1)) b c iff_bc).mpr
+          (pivotalVoter_succ_isTop h1 f hPareto hIIA q hxb c hcb)
+      have fp'_ac : (f p').pref a c := (f p').trans a b c fp'_ab fp'_bc
+      (hIIA p' p a c iff_ac).mp fp'_ac)
 
-The proof:
-
-1. Use `AtLeastThree.exists_ne` to extract an `x ≠ b`.
-2. Case-split on whether `Profile m α` is empty.  If empty, any `k`
-   works vacuously.  Otherwise pick a base profile `q` via
-   `Classical.choice` and set `k := pivotalVoter h1 f hPareto hIIA q hxb`.
-3. For the dictator claim, case-split on `a = c`.  If `a = c`, the
-   hypothesis `(p k).pref a c` collapses to `(p k).pref a a`, which is
-   refuted by irreflexivity.
-4. Otherwise `a ≠ c`.  Build the auxiliary profile `p' :=
-   localDictAuxProfile p k a b`.  Apply IIA on `(a, c)`, `(a, b)`,
-   `(b, c)` separately, combining `pivotalVoter_isBottom` /
-   `pivotalVoter_succ_isTop` and the social transitivity of `(f p')` to
-   reach `(f p').pref a c`, then transfer to `(f p).pref a c` via IIA. -/
+/-- **Pivotal voter is a local dictator.**  Thin wrapper around
+`pivotalVoter_dictates_nonB` that picks a base profile via `Classical.choice`
+in the non-empty case (and falls back to a vacuous proof if `Profile m α`
+is empty). -/
 theorem pivotalVoterIsLocalDictator [DecidableEq α]
     (f : SWF m α) (hPareto : SWF.Pareto f) (hIIA : SWF.IIA f)
     (h1 : 0 < m) (h3 : AtLeastThree α) (b : α) :
@@ -364,47 +407,91 @@ theorem pivotalVoterIsLocalDictator [DecidableEq α]
   Classical.byCases
     (fun hNE : Nonempty (Profile m α) =>
       let q := Classical.choice hNE
-      let k := pivotalVoter h1 f hPareto hIIA q hxb
-      ⟨k, fun a c hab hcb p hpac =>
-        Classical.byCases
-          (fun heq : a = c =>
-            absurd
-              (Eq.mpr (congrArg (fun y => (p k).pref a y) heq) hpac)
-              ((p k).irrefl a))
-          (fun hac : a ≠ c =>
-            let p' := localDictAuxProfile p k a b
-            let iff_ac : ∀ i, (p' i).pref a c ↔ (p i).pref a c :=
-              fun i => localDictAuxProfile_pref_ac hab hcb hac hpac i
-            let iff_ab : ∀ i, (p' i).pref a b ↔ (staircase q b k.val i).pref a b :=
-              fun i => localDictAuxProfile_pref_ab_iff_staircase hab i
-            let iff_bc : ∀ i, (p' i).pref b c ↔ (staircase q b (k.val + 1) i).pref b c :=
-              fun i => localDictAuxProfile_pref_bc_iff_staircase_succ hab hcb hac i
-            have fp'_ab : (f p').pref a b :=
-              (hIIA p' (staircase q b k.val) a b iff_ab).mpr
-                (pivotalVoter_isBottom h1 f hPareto hIIA q hxb a hab)
-            have fp'_bc : (f p').pref b c :=
-              (hIIA p' (staircase q b (k.val + 1)) b c iff_bc).mpr
-                (pivotalVoter_succ_isTop h1 f hPareto hIIA q hxb c hcb)
-            have fp'_ac : (f p').pref a c := (f p').trans a b c fp'_ab fp'_bc
-            (hIIA p' p a c iff_ac).mp fp'_ac)⟩)
+      ⟨pivotalVoter h1 f hPareto hIIA q hxb,
+       pivotalVoter_dictates_nonB h1 f hPareto hIIA q hxb⟩)
     (fun hNE : ¬ Nonempty (Profile m α) =>
       ⟨⟨0, h1⟩, fun _ _ _ _ p _ => absurd (Nonempty.intro p) hNE⟩)
 
+/-- **The pivotal voter is the same for any two alternatives.**
+
+If `k_b` and `k_{b'}` are the pivotal voters for `b` and `b'` (in a
+shared base profile `q`), then `k_b = k_{b'}`.
+
+Proof: pick an alternative `a` distinct from both `b` and `b'`.  In the
+staircase profile `S_low := staircase q b' k_{b'}.val`, society places
+`b'` at the bottom, so `(f S_low).pref a b'`; by asymmetry, `(f
+S_low).pref b' a` is false.  By contrapositive of `k_b`'s dictatorship
+over `(b', a)` (a pair avoiding `b`), voter `k_b`'s `(b', a)` ranking
+in `S_low` is also false.  But `S_low` puts `b'` at the top for voter
+`k_b` iff `k_b.val < k_{b'}.val`; so we must have `k_b.val ≥ k_{b'}.val`.
+The symmetric staircase `staircase q b' (k_{b'}.val + 1)` gives
+`k_b.val ≤ k_{b'}.val`, and `Fin.ext` concludes. -/
+theorem pivotalVoter_eq_of_different_b [DecidableEq α] (h1 : 0 < m) (h3 : AtLeastThree α)
+    (f : SWF m α) (hPareto : SWF.Pareto f) (hIIA : SWF.IIA f)
+    (q : Profile m α) {b b' x x' : α} (hbb' : b ≠ b') (hxb : x ≠ b) (hxb' : x' ≠ b') :
+    pivotalVoter h1 f hPareto hIIA q hxb = pivotalVoter h1 f hPareto hIIA q hxb' :=
+  let k_b := pivotalVoter h1 f hPareto hIIA q hxb
+  let k_b' := pivotalVoter h1 f hPareto hIIA q hxb'
+  let ⟨a, hab, hab'⟩ := AtLeastThree.exists_ne_two h3 b b' hbb'
+  have h_geq : k_b'.val ≤ k_b.val :=
+    if h : k_b.val < k_b'.val then
+      have hS : staircase q b' k_b'.val k_b = (q k_b).moveBToTop b' := staircase_lt h
+      have h_pref : (staircase q b' k_b'.val k_b).pref b' a :=
+        Eq.mpr (congrArg (fun r : StrictPref α => r.pref b' a) hS)
+          ((q k_b).moveBToTop_pref_b_other hab')
+      have h_f : (f (staircase q b' k_b'.val)).pref b' a :=
+        pivotalVoter_dictates_nonB h1 f hPareto hIIA q hxb b' a (Ne.symm hbb') hab _ h_pref
+      have h_pref_ab : (f (staircase q b' k_b'.val)).pref a b' :=
+        pivotalVoter_isBottom h1 f hPareto hIIA q hxb' a hab'
+      absurd h_f ((f (staircase q b' k_b'.val)).asym a b' h_pref_ab)
+    else
+      Nat.le_of_not_lt h
+  have h_leq : k_b.val ≤ k_b'.val :=
+    if h : k_b'.val < k_b.val then
+      have h_ge : k_b'.val + 1 ≤ k_b.val := Nat.succ_le_of_lt h
+      have h_not_lt : ¬ k_b.val < k_b'.val + 1 := Nat.not_lt.mpr h_ge
+      have hS : staircase q b' (k_b'.val + 1) k_b = (q k_b).moveBToBottom b' :=
+        staircase_ge h_not_lt
+      have h_pref : (staircase q b' (k_b'.val + 1) k_b).pref a b' :=
+        Eq.mpr (congrArg (fun r : StrictPref α => r.pref a b') hS)
+          ((q k_b).moveBToBottom_pref_other_b hab')
+      have h_f : (f (staircase q b' (k_b'.val + 1))).pref a b' :=
+        pivotalVoter_dictates_nonB h1 f hPareto hIIA q hxb a b' hab (Ne.symm hbb') _ h_pref
+      have h_pref_b'a : (f (staircase q b' (k_b'.val + 1))).pref b' a :=
+        pivotalVoter_succ_isTop h1 f hPareto hIIA q hxb' a hab'
+      absurd h_f ((f (staircase q b' (k_b'.val + 1))).asym b' a h_pref_b'a)
+    else
+      Nat.le_of_not_lt h
+  Fin.ext (Nat.le_antisymm h_leq h_geq)
+
 /-- **Pivot-voter consistency across choices of `b`.**
 
-The pivotal voter for `b` is also the pivotal voter for any other
-alternative `b'`.  Promoted from local to global dictatorship by
-applying `pivotalVoterIsLocalDictator` for two different `b` choices
-and observing that every pair `(a, c)` avoids at least one of them.
-
-Stub: defers to the local-dictatorship lemma above plus a triangle
-argument that recovers `(b, ·)` dictatorship from `(·, b')` results. -/
+The same voter `k` dictates pairs avoiding `b` and pairs avoiding `b'`.
+Concretely, take `k := pivotalVoter h1 f hPareto hIIA q hxb` and use
+`pivotalVoter_eq_of_different_b` to identify it with the pivotal voter
+for `b'`. -/
 theorem pivotalVoterUnique [DecidableEq α]
     (f : SWF m α) (hPareto : SWF.Pareto f) (hIIA : SWF.IIA f)
-    (h1 : 0 < m) (h3 : AtLeastThree α) (b b' : α) (_hbb' : b ≠ b') :
+    (h1 : 0 < m) (h3 : AtLeastThree α) (b b' : α) (hbb' : b ≠ b') :
     ∃ k : Fin m,
       (∀ a c : α, a ≠ b  → c ≠ b  → ∀ p : Profile m α, (p k).pref a c → (f p).pref a c) ∧
-      (∀ a c : α, a ≠ b' → c ≠ b' → ∀ p : Profile m α, (p k).pref a c → (f p).pref a c) := by
-  sorry
+      (∀ a c : α, a ≠ b' → c ≠ b' → ∀ p : Profile m α, (p k).pref a c → (f p).pref a c) :=
+  Classical.byCases
+    (fun hNE : Nonempty (Profile m α) =>
+      let q := Classical.choice hNE
+      let ⟨_x, hxb⟩ := AtLeastThree.exists_ne h3 b
+      let ⟨_x', hxb'⟩ := AtLeastThree.exists_ne h3 b'
+      let k_b := pivotalVoter h1 f hPareto hIIA q hxb
+      have hk_eq : k_b = pivotalVoter h1 f hPareto hIIA q hxb' :=
+        pivotalVoter_eq_of_different_b h1 h3 f hPareto hIIA q hbb' hxb hxb'
+      ⟨k_b,
+        pivotalVoter_dictates_nonB h1 f hPareto hIIA q hxb,
+        fun a c hab' hcb' p hpac =>
+          pivotalVoter_dictates_nonB h1 f hPareto hIIA q hxb' a c hab' hcb' p
+            (Eq.mp (congrArg (fun k => (p k).pref a c) hk_eq) hpac)⟩)
+    (fun hNE : ¬ Nonempty (Profile m α) =>
+      ⟨⟨0, h1⟩,
+        (fun _ _ _ _ p _ => absurd (Nonempty.intro p) hNE),
+        (fun _ _ _ _ p _ => absurd (Nonempty.intro p) hNE)⟩)
 
 end ArrowCat
