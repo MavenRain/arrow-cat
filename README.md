@@ -79,10 +79,6 @@ or as a git dependency.
    argument shows the pivotal voter is the same individual throughout
    and is a dictator over every pair.
 
-## Status
-
-Scaffolding complete; theorem statements compile under `sorry`.  Proofs
-are the next milestone.
 
 ## License
 
