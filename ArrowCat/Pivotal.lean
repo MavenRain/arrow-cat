@@ -35,28 +35,33 @@ noncomputable def staircase (q : Profile m α) (b : α) (k : Nat) :
     Profile m α :=
   fun i => if i.val < k then (q i).moveBToTop b else (q i).moveBToBottom b
 
+/-- Case lemma: in the "top" branch of the staircase. -/
+theorem staircase_lt {q : Profile m α} {b : α} {k : Nat} {i : Fin m}
+    (h : i.val < k) :
+    staircase q b k i = (q i).moveBToTop b := if_pos h
+
+/-- Case lemma: in the "bottom" branch of the staircase. -/
+theorem staircase_ge {q : Profile m α} {b : α} {k : Nat} {i : Fin m}
+    (h : ¬ i.val < k) :
+    staircase q b k i = (q i).moveBToBottom b := if_neg h
+
 /-- Every voter in the staircase places `b` extremally. -/
 theorem staircase_isExtreme (q : Profile m α) (b : α) (k : Nat) (i : Fin m) :
     (staircase q b k i).isExtreme b :=
   if h : i.val < k then
-    have heq : staircase q b k i = (q i).moveBToTop b := if_pos h
-    heq ▸ Or.inl ((q i).moveBToTop_isTop b)
+    (staircase_lt h) ▸ Or.inl ((q i).moveBToTop_isTop b)
   else
-    have heq : staircase q b k i = (q i).moveBToBottom b := if_neg h
-    heq ▸ Or.inr ((q i).moveBToBottom_isBottom b)
+    (staircase_ge h) ▸ Or.inr ((q i).moveBToBottom_isBottom b)
 
 /-- At `k = 0` the staircase puts every voter with `b` at the bottom. -/
 theorem staircase_zero_isBottom (q : Profile m α) (b : α) (i : Fin m) :
     (staircase q b 0 i).isBottom b :=
-  have heq : staircase q b 0 i = (q i).moveBToBottom b :=
-    if_neg (Nat.not_lt_zero i.val)
-  heq ▸ (q i).moveBToBottom_isBottom b
+  (staircase_ge (Nat.not_lt_zero i.val)) ▸ (q i).moveBToBottom_isBottom b
 
 /-- At `k = m` the staircase puts every voter with `b` at the top. -/
 theorem staircase_max_isTop (q : Profile m α) (b : α) (i : Fin m) :
     (staircase q b m i).isTop b :=
-  have heq : staircase q b m i = (q i).moveBToTop b := if_pos i.isLt
-  heq ▸ (q i).moveBToTop_isTop b
+  (staircase_lt i.isLt) ▸ (q i).moveBToTop_isTop b
 
 /-- Society places `b` at the bottom in the all-bottom staircase. -/
 theorem swf_staircase_zero_isBottom (f : SWF m α) (hPareto : SWF.Pareto f)
@@ -134,7 +139,6 @@ theorem exists_pivotalVoter [DecidableEq α] (_h1 : 0 < m)
     ∃ k : Fin m,
       (f (staircase q b (k.val + 1))).isTop b ∧
       (f (staircase q b k.val)).isBottom b := by
-  -- Set up the boundary predicate
   have hP_m : (f (staircase q b m)).isTop b :=
     swf_staircase_max_isTop f hPareto q b
   have hP_0 : ¬ (f (staircase q b 0)).isTop b := fun hTop =>
@@ -143,20 +147,14 @@ theorem exists_pivotalVoter [DecidableEq α] (_h1 : 0 < m)
     (f (staircase q b 0)).asym b x (hTop x hxb) (hBot x hxb)
   let ⟨k, hk1, hkm, hPk, hPnk⟩ :=
     Nat.exists_boundary (fun k => (f (staircase q b k)).isTop b) m hP_m hP_0
-  -- k ∈ [1, m]. Pivotal voter is k - 1 : Fin m.
-  -- k.val + 1 = k after substitution (need k - 1 + 1 = k)
   have hk_pos : 0 < k := hk1
   have hk_pred_lt_m : k - 1 < m :=
     Nat.lt_of_lt_of_le (Nat.sub_lt hk_pos Nat.one_pos) hkm
   have hk_succ_eq : k - 1 + 1 = k := Nat.sub_add_cancel hk1
   kan_refine ⟨⟨k - 1, hk_pred_lt_m⟩, ?_, ?_⟩
-  · -- (f (staircase q b (k - 1 + 1))).isTop b  =  (f (staircase q b k)).isTop b
-    kan_exact Eq.mpr
+  · kan_exact Eq.mpr
       (congrArg (fun n => (f (staircase q b n)).isTop b) hk_succ_eq) hPk
-  · -- (f (staircase q b (k - 1))).isBottom b
-    -- We have ¬ (f (staircase q b (k - 1))).isTop b (hPnk).
-    -- By extremal lemma, society places b extremally.  Not top means bottom.
-    kan_exact (swf_staircase_isExtreme f hPareto hIIA q b (k - 1)).resolve_left hPnk
+  · kan_exact (swf_staircase_isExtreme f hPareto hIIA q b (k - 1)).resolve_left hPnk
 
 /-- The pivotal voter, as a `Fin m`.  Classical choice on
 `exists_pivotalVoter`. -/
@@ -191,26 +189,151 @@ theorem AtLeastThree.exists_ne (h3 : AtLeastThree α) (b : α) : ∃ x : α, x �
 
 /-! ### Local dictatorship of the pivotal voter
 
-The Geanakoplos argument: starting from the pivotal voter `k` of a
-fixed base profile `q`, any input profile `p` with `(p k).pref a c`
-(for `a, c ≠ b`) satisfies `(f p).pref a c`.
+The Geanakoplos construction: build an auxiliary profile `p'` that
+preserves every voter's `(a, c)` ranking and aligns the per-voter
+`b`-positions with the staircases that exhibit the pivotal flip.
+Voter `k`'s ranking is set to `a > b > c` (via two `moveBToTop`
+applications) so that `(p' k).pref a b`, `(p' k).pref b c`, and
+`(p' k).pref a c` all hold; voters before `k` have `b` at the top
+(via `moveBToTop`); voters after have `b` at the bottom (via
+`moveBToBottom`). -/
 
-The proof of the dictator-over-`(a, c)`-when-neither-is-`b` direction
-(the conclusion of `pivotalVoterIsLocalDictator`) goes by constructing
-an intermediate profile `p'` from `p` that
+section LocalDictator
 
-- preserves every voter's `(a, c)` ranking (so IIA on `(a, c)` keeps the
-  social ranking of `(a, c)` unchanged between `p` and `p'`);
-- aligns every voter's `b`-position with the staircase profile that
-  exhibits the pivotal flip (so the pivotal-voter spec + extremal lemma
-  give `(f p').pref a b` and `(f p').pref b c`);
-- transitivity of `(f p')` then yields `(f p').pref a c`, which by IIA
-  transfers back to `(f p).pref a c`.
+variable {a b c : α}
 
-That intermediate-profile construction is itself nontrivial and is
-left as the inner `sorry` of the proof below; everything around it
-(case-splitting on `Nonempty (Profile m α)`, extracting the witness `x
-≠ b`, defining `k` via `pivotalVoter`) is in place. -/
+private theorem iff_of_true' {p q : Prop} (hp : p) (hq : q) : p ↔ q :=
+  ⟨fun _ => hq, fun _ => hp⟩
+
+private theorem iff_of_false' {p q : Prop} (hnp : ¬ p) (hnq : ¬ q) : p ↔ q :=
+  ⟨fun hp => absurd hp hnp, fun hq => absurd hq hnq⟩
+
+/-- The auxiliary profile used in the proof of
+`pivotalVoterIsLocalDictator`. -/
+noncomputable def localDictAuxProfile (p : Profile m α) (k : Fin m)
+    (a b : α) : Profile m α :=
+  fun i =>
+    if i.val < k.val then (p i).moveBToTop b
+    else if i.val = k.val then ((p i).moveBToTop b).moveBToTop a
+    else (p i).moveBToBottom b
+
+private theorem localDictAuxProfile_lt {p : Profile m α} {k : Fin m} {i : Fin m}
+    (h : i.val < k.val) :
+    localDictAuxProfile p k a b i = (p i).moveBToTop b := if_pos h
+
+private theorem localDictAuxProfile_eq {p : Profile m α} {k : Fin m} {i : Fin m}
+    (h1 : ¬ i.val < k.val) (h2 : i.val = k.val) :
+    localDictAuxProfile p k a b i = ((p i).moveBToTop b).moveBToTop a :=
+  (if_neg h1).trans (if_pos h2)
+
+private theorem localDictAuxProfile_gt {p : Profile m α} {k : Fin m} {i : Fin m}
+    (h1 : ¬ i.val < k.val) (h2 : ¬ i.val = k.val) :
+    localDictAuxProfile p k a b i = (p i).moveBToBottom b :=
+  (if_neg h1).trans (if_neg h2)
+
+/-- The auxiliary profile preserves every voter's `(a, c)` ranking. -/
+theorem localDictAuxProfile_pref_ac
+    {p : Profile m α} {k : Fin m}
+    (hab : a ≠ b) (hcb : c ≠ b) (hac : a ≠ c)
+    (hpac : (p k).pref a c) (i : Fin m) :
+    (localDictAuxProfile p k a b i).pref a c ↔ (p i).pref a c :=
+  if h1 : i.val < k.val then
+    (Iff.of_eq (congrArg (fun r : StrictPref α => r.pref a c)
+      (localDictAuxProfile_lt h1))).trans
+      ((p i).moveBToTop_pref_iff_of_ne b hab hcb)
+  else if h2 : i.val = k.val then
+    have hik : i = k := Fin.ext h2
+    have hLHS : (localDictAuxProfile p k a b i).pref a c :=
+      Eq.mpr (congrArg (fun r : StrictPref α => r.pref a c)
+        (localDictAuxProfile_eq h1 h2))
+        (Or.inl ⟨rfl, hac⟩ : (((p i).moveBToTop b).moveBToTop a).pref a c)
+    have hRHS : (p i).pref a c :=
+      Eq.mpr (congrArg (fun j => (p j).pref a c) hik) hpac
+    iff_of_true' hLHS hRHS
+  else
+    (Iff.of_eq (congrArg (fun r : StrictPref α => r.pref a c)
+      (localDictAuxProfile_gt h1 h2))).trans
+      ((p i).moveBToBottom_pref_iff_of_ne b hab hcb)
+
+/-- For each voter, the auxiliary profile's `(a, b)` ranking matches the
+staircase at parameter `k.val`. -/
+theorem localDictAuxProfile_pref_ab_iff_staircase
+    {p q : Profile m α} {k : Fin m} (hab : a ≠ b)
+    (i : Fin m) :
+    (localDictAuxProfile p k a b i).pref a b ↔
+        (staircase q b k.val i).pref a b :=
+  if h1 : i.val < k.val then
+    iff_of_false'
+      (fun h_aux => (p i).moveBToTop_not_pref_other_b hab
+        (Eq.mp (congrArg (fun r : StrictPref α => r.pref a b)
+          (localDictAuxProfile_lt h1)) h_aux))
+      (fun h_stair => (q i).moveBToTop_not_pref_other_b hab
+        (Eq.mp (congrArg (fun r : StrictPref α => r.pref a b)
+          (staircase_lt h1)) h_stair))
+  else if h2 : i.val = k.val then
+    -- LHS = (((p i).moveBToTop b).moveBToTop a).pref a b = Or.inl ⟨rfl, hab⟩
+    -- RHS = ((q i).moveBToBottom b).pref a b = Or.inl ⟨rfl, hab⟩ (moveBToBottom_pref_other_b)
+    iff_of_true'
+      (Eq.mpr (congrArg (fun r : StrictPref α => r.pref a b)
+        (localDictAuxProfile_eq h1 h2))
+        (Or.inl ⟨rfl, hab⟩ : (((p i).moveBToTop b).moveBToTop a).pref a b))
+      (Eq.mpr (congrArg (fun r : StrictPref α => r.pref a b)
+        (staircase_ge h1))
+        ((q i).moveBToBottom_pref_other_b hab))
+  else
+    iff_of_true'
+      (Eq.mpr (congrArg (fun r : StrictPref α => r.pref a b)
+        (localDictAuxProfile_gt h1 h2))
+        ((p i).moveBToBottom_pref_other_b hab))
+      (Eq.mpr (congrArg (fun r : StrictPref α => r.pref a b)
+        (staircase_ge h1))
+        ((q i).moveBToBottom_pref_other_b hab))
+
+/-- For each voter, the auxiliary profile's `(b, c)` ranking matches the
+staircase at parameter `k.val + 1`. -/
+theorem localDictAuxProfile_pref_bc_iff_staircase_succ
+    {p q : Profile m α} {k : Fin m}
+    (hab : a ≠ b) (hcb : c ≠ b) (hac : a ≠ c)
+    (i : Fin m) :
+    (localDictAuxProfile p k a b i).pref b c ↔
+        (staircase q b (k.val + 1) i).pref b c :=
+  if h1 : i.val < k.val then
+    have h1' : i.val < k.val + 1 := Nat.lt_succ_of_lt h1
+    iff_of_true'
+      (Eq.mpr (congrArg (fun r : StrictPref α => r.pref b c)
+        (localDictAuxProfile_lt h1))
+        ((p i).moveBToTop_pref_b_other hcb))
+      (Eq.mpr (congrArg (fun r : StrictPref α => r.pref b c)
+        (staircase_lt h1'))
+        ((q i).moveBToTop_pref_b_other hcb))
+  else if h2 : i.val = k.val then
+    have h_lt : i.val < k.val + 1 :=
+      Eq.mpr (congrArg (· < k.val + 1) h2) (Nat.lt_succ_self k.val)
+    -- LHS = (((p i).moveBToTop b).moveBToTop a).pref b c
+    --     = Or.inr ⟨b ≠ a, c ≠ a, ((p i).moveBToTop b).pref b c⟩
+    --     = Or.inr ⟨hab.symm-Ne, hac-Ne.symm, moveBToTop_pref_b_other hcb⟩
+    have hLHS : (((p i).moveBToTop b).moveBToTop a).pref b c :=
+      Or.inr ⟨fun heq => hab heq.symm,
+              fun heq => hac heq.symm,
+              (p i).moveBToTop_pref_b_other hcb⟩
+    iff_of_true'
+      (Eq.mpr (congrArg (fun r : StrictPref α => r.pref b c)
+        (localDictAuxProfile_eq h1 h2)) hLHS)
+      (Eq.mpr (congrArg (fun r : StrictPref α => r.pref b c)
+        (staircase_lt h_lt))
+        ((q i).moveBToTop_pref_b_other hcb))
+  else
+    have h_not_lt : ¬ i.val < k.val + 1 := fun h =>
+      h2 (Nat.le_antisymm (Nat.le_of_lt_succ h) (Nat.not_lt.mp h1))
+    iff_of_false'
+      (fun h_aux => (p i).moveBToBottom_not_pref_b_other hcb
+        (Eq.mp (congrArg (fun r : StrictPref α => r.pref b c)
+          (localDictAuxProfile_gt h1 h2)) h_aux))
+      (fun h_stair => (q i).moveBToBottom_not_pref_b_other hcb
+        (Eq.mp (congrArg (fun r : StrictPref α => r.pref b c)
+          (staircase_ge h_not_lt)) h_stair))
+
+end LocalDictator
 
 /-- **Pivotal voter is a local dictator.**
 
@@ -218,29 +341,53 @@ There exists a voter `k` such that for any two alternatives `a, c`
 neither of which is `b`, society's preference always agrees with voter
 `k`'s.
 
-When `Profile m α` is empty, the universal `∀ p` is vacuous and any
-`k : Fin m` works; when it is nonempty, we pick a base profile `q` via
-`Classical.choice` and take `k := pivotalVoter h1 f hPareto hIIA q hxb`.
-The proper Geanakoplos dictator-over-`(a, c)` argument is the inner
-`sorry`. -/
+The proof:
+
+1. Use `AtLeastThree.exists_ne` to extract an `x ≠ b`.
+2. Case-split on whether `Profile m α` is empty.  If empty, any `k`
+   works vacuously.  Otherwise pick a base profile `q` via
+   `Classical.choice` and set `k := pivotalVoter h1 f hPareto hIIA q hxb`.
+3. For the dictator claim, case-split on `a = c`.  If `a = c`, the
+   hypothesis `(p k).pref a c` collapses to `(p k).pref a a`, which is
+   refuted by irreflexivity.
+4. Otherwise `a ≠ c`.  Build the auxiliary profile `p' :=
+   localDictAuxProfile p k a b`.  Apply IIA on `(a, c)`, `(a, b)`,
+   `(b, c)` separately, combining `pivotalVoter_isBottom` /
+   `pivotalVoter_succ_isTop` and the social transitivity of `(f p')` to
+   reach `(f p').pref a c`, then transfer to `(f p).pref a c` via IIA. -/
 theorem pivotalVoterIsLocalDictator [DecidableEq α]
     (f : SWF m α) (hPareto : SWF.Pareto f) (hIIA : SWF.IIA f)
     (h1 : 0 < m) (h3 : AtLeastThree α) (b : α) :
     ∃ k : Fin m, ∀ a c : α, a ≠ b → c ≠ b →
       ∀ p : Profile m α, (p k).pref a c → (f p).pref a c :=
-  let ⟨x, hxb⟩ := AtLeastThree.exists_ne h3 b
+  let ⟨_x, hxb⟩ := AtLeastThree.exists_ne h3 b
   Classical.byCases
     (fun hNE : Nonempty (Profile m α) =>
       let q := Classical.choice hNE
       let k := pivotalVoter h1 f hPareto hIIA q hxb
-      ⟨k, fun _a _c _hab _hcb _p _hpac =>
-        -- Inner Geanakoplos construction: build p' from p that preserves
-        -- every voter's (a, c) ranking and aligns b-positions with
-        -- staircase q b (k.val + 1) for the pivotal flip.  Then apply
-        -- IIA + extremalLemma + transitivity.  Deferred.
-        sorry⟩)
+      ⟨k, fun a c hab hcb p hpac =>
+        Classical.byCases
+          (fun heq : a = c =>
+            absurd
+              (Eq.mpr (congrArg (fun y => (p k).pref a y) heq) hpac)
+              ((p k).irrefl a))
+          (fun hac : a ≠ c =>
+            let p' := localDictAuxProfile p k a b
+            let iff_ac : ∀ i, (p' i).pref a c ↔ (p i).pref a c :=
+              fun i => localDictAuxProfile_pref_ac hab hcb hac hpac i
+            let iff_ab : ∀ i, (p' i).pref a b ↔ (staircase q b k.val i).pref a b :=
+              fun i => localDictAuxProfile_pref_ab_iff_staircase hab i
+            let iff_bc : ∀ i, (p' i).pref b c ↔ (staircase q b (k.val + 1) i).pref b c :=
+              fun i => localDictAuxProfile_pref_bc_iff_staircase_succ hab hcb hac i
+            have fp'_ab : (f p').pref a b :=
+              (hIIA p' (staircase q b k.val) a b iff_ab).mpr
+                (pivotalVoter_isBottom h1 f hPareto hIIA q hxb a hab)
+            have fp'_bc : (f p').pref b c :=
+              (hIIA p' (staircase q b (k.val + 1)) b c iff_bc).mpr
+                (pivotalVoter_succ_isTop h1 f hPareto hIIA q hxb c hcb)
+            have fp'_ac : (f p').pref a c := (f p').trans a b c fp'_ab fp'_bc
+            (hIIA p' p a c iff_ac).mp fp'_ac)⟩)
     (fun hNE : ¬ Nonempty (Profile m α) =>
-      -- Profile m α is empty; the inner ∀ p is vacuous.
       ⟨⟨0, h1⟩, fun _ _ _ _ p _ => absurd (Nonempty.intro p) hNE⟩)
 
 /-- **Pivot-voter consistency across choices of `b`.**

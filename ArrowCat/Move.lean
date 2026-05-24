@@ -144,5 +144,36 @@ theorem moveBToBottom_pref_iff_of_ne (q : StrictPref α) (b : α) {x y : α}
     (fun ⟨_, _, hp⟩ => hp),
    fun h => Or.inr ⟨hxb, hyb, h⟩⟩
 
+/-! ### `(a, b)`/`(b, a)` evaluations in `moveBToTop`/`moveBToBottom`
+
+These rules compute the `(·, b)` and `(b, ·)` preferences in the
+modified profiles; their values depend only on the modification kind
+(`moveBToTop` vs `moveBToBottom`), not on the base profile `q`.  They
+are the workhorse for matching the auxiliary profile in the
+local-dictator proof against the staircase profile. -/
+
+/-- `moveBToTop` does not prefer any non-`b` element to `b` (since `b`
+sits at the top). -/
+theorem moveBToTop_not_pref_other_b (q : StrictPref α) {a b : α}
+    (hab : a ≠ b) : ¬ (q.moveBToTop b).pref a b :=
+  fun h => h.elim (fun ⟨hab', _⟩ => hab hab')
+                  (fun ⟨_, hbb, _⟩ => hbb rfl)
+
+/-- `moveBToTop` does prefer `b` to any other element. -/
+theorem moveBToTop_pref_b_other (q : StrictPref α) {a b : α}
+    (hab : a ≠ b) : (q.moveBToTop b).pref b a :=
+  Or.inl ⟨rfl, fun heq => hab heq.symm⟩
+
+/-- `moveBToBottom` prefers any non-`b` element to `b`. -/
+theorem moveBToBottom_pref_other_b (q : StrictPref α) {a b : α}
+    (hab : a ≠ b) : (q.moveBToBottom b).pref a b :=
+  Or.inl ⟨rfl, hab⟩
+
+/-- `moveBToBottom` does not prefer `b` to any other element. -/
+theorem moveBToBottom_not_pref_b_other (q : StrictPref α) {a b : α}
+    (hab : a ≠ b) : ¬ (q.moveBToBottom b).pref b a :=
+  fun h => h.elim (fun ⟨hab', _⟩ => hab hab')
+                  (fun ⟨hbb, _, _⟩ => hbb rfl)
+
 end StrictPref
 end ArrowCat
