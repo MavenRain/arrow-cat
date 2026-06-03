@@ -8,4 +8,5 @@ package «arrow-cat» where
 lean_lib «ArrowCat» where
   roots := #[`ArrowCat]
 
-require «kan-tactics» from ".." / "kan-tactics"
+require «kan-tactics» from git
+  "https://github.com/MavenRain/kan-tactics.git" @ "main"
